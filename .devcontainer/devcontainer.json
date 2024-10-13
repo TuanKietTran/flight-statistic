@@ -1,0 +1,13 @@
+{
+  "name": "PySpark, Yugabyte, MinIO Dev",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "pyspark",
+  "workspaceFolder": "/home/jovyan/work",
+  "extensions": [
+    "ms-python.python",
+    "ms-azuretools.vscode-docker"
+  ],
+  "settings": {
+    "python.pythonPath": "/opt/conda/bin/python"
+  }
+}

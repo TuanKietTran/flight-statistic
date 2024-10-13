@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  yugabytedb:
+    image: yugabytedb/yugabyte:latest
+    container_name: yugabytedb
+    ports:
+      - "5433:5433" # YCQL API
+      - "9042:9042" # YSQL API
+    environment:
+      - CLUSTER_NAME=yugabytedb-cluster
+      - YB_MASTER_WEB_PORT=7000
+      - YB_TSERVER_WEB_PORT=9000
+    command: [ "bin/yugabyted", "start", "--daemon=false" ]
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: "minioadmin"
+      MINIO_ROOT_PASSWORD: "minioadmin"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
+  pyspark:
+    image: jupyter/pyspark-notebook
+    container_name: pyspark
+    ports:
+      - "8888:8888"
+    environment:
+      JUPYTER_ENABLE_LAB: "yes"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+    command: start-notebook.sh
+
+volumes:
+  minio_data:
+    driver: local
