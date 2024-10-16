@@ -1,4 +1,0 @@
-# requirements.txt - Python dependencies
-boto3
-pyspark
-psycopg2

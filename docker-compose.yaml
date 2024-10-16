@@ -1,3 +1,4 @@
+# docker-compose.yml - Container setup for PySpark Cluster, YugabyteDB, and MinIO
 version: '3.8'
 
 services:
@@ -7,11 +8,21 @@ services:
     ports:
       - "5433:5433" # YCQL API
       - "9042:9042" # YSQL API
+      - "7001:7000" # Master UI Port
+      - "9002:9000" # TServer UI Port
+      - "15433:15433"
     environment:
       - CLUSTER_NAME=yugabytedb-cluster
       - YB_MASTER_WEB_PORT=7000
       - YB_TSERVER_WEB_PORT=9000
     command: [ "bin/yugabyted", "start", "--daemon=false" ]
+    networks:
+      - my_network
+
+    # Note: If you are running macOS Monterey, replace -p7000:7000 with -p7001:7000.
+    # This is necessary because Monterey enables AirPlay receiving by default, which listens on port 7000.
+    # This conflicts with YugabyteDB and causes yugabyted start to fail unless you forward the port as shown.
+    # Alternatively, you can disable AirPlay receiving, then start YugabyteDB normally, and then, optionally, re-enable AirPlay receiving.
 
   minio:
     image: minio/minio:latest
@@ -25,18 +36,41 @@ services:
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
+    networks:
+      - my_network
 
-  pyspark:
-    image: jupyter/pyspark-notebook
-    container_name: pyspark
+  spark-master:
+    image: bde2020/spark-master:latest
+    container_name: spark-master
     ports:
-      - "8888:8888"
+      - "7077:7077"
+      - "8080:8080"
+    depends_on:
+      - minio
     environment:
-      JUPYTER_ENABLE_LAB: "yes"
+      - INIT_DAEMON_STEP=setup_spark
+      - MINIO_ENDPOINT=http://minio:9000
     volumes:
-      - ./notebooks:/home/jovyan/work
-    command: start-notebook.sh
+      - ./jars:/opt/spark/jars
+    networks:
+      - my_network
+
+  spark-worker:
+    image: bde2020/spark-worker:latest
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    ports:
+      - "8081:8081"
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+    networks:
+      - my_network
 
 volumes:
   minio_data:
     driver: local
+
+networks:
+  my_network:
+    driver: bridge
