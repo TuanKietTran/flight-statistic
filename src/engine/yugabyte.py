@@ -20,7 +20,7 @@ def create_table():
     cursor = conn.cursor()
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS flight_data (
-        flight_number TEXT PRIMARY KEY,
+        flight_number TEXT,
         year INT,
         month INT,
         day INT,

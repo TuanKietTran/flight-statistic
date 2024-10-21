@@ -20,14 +20,19 @@ The Flight Statistic project is designed to gather, analyze, and visualize fligh
    cd flight-statistic
    ```
 
-2. **Setup Using Docker**
+2. **Setup Docker Container**
    - Make sure Docker is installed and running.
+   - Install plugins using those commands:
+    ```bash
+    sudo chmod +x ./bin/install_plugins.sh
+    ./bin/install_plugins.sh
+    ```
    - Use the provided `docker-compose.yaml` to build and start the services:
      ```bash
      docker-compose up --d
      ```
 
-3. **Setup Without Docker**
+3. **Setup dev env**
    - Create a virtual environment and activate it:
      ```bash
      python -m venv venv
