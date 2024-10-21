@@ -35,7 +35,7 @@ The Flight Statistic project is designed to gather, analyze, and visualize fligh
      ```
    - Install dependencies:
      ```bash
-     pip install -r requirements.txt
+     pip install -e .
      ```
 
 4. **Run the Application**
@@ -51,7 +51,7 @@ The Flight Statistic project is designed to gather, analyze, and visualize fligh
 - `test/`: Contains unit tests to ensure the quality of the codebase.
 
 ## Develop
-After setting up, restore the package by running:
+After every pulling repo, restore the package by running:
 ```bash
 pip install -e .
 ```
