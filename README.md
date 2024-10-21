@@ -24,7 +24,7 @@ The Flight Statistic project is designed to gather, analyze, and visualize fligh
    - Make sure Docker is installed and running.
    - Use the provided `docker-compose.yaml` to build and start the services:
      ```bash
-     docker-compose up --build
+     docker-compose up --d
      ```
 
 3. **Setup Without Docker**
