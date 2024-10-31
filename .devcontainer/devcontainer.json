@@ -1,13 +1,41 @@
 {
-  "name": "PySpark, Yugabyte, MinIO Dev",
-  "dockerComposeFile": "docker-compose.yml",
-  "service": "pyspark",
-  "workspaceFolder": "/home/jovyan/work",
-  "extensions": [
-    "ms-python.python",
-    "ms-azuretools.vscode-docker"
+  "name": "flight-data-devcontainer",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".",
+    "args": {
+      "VARIANT": "3.11"
+    }
+  },
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "python.defaultInterpreterPath": "/workspace/venv/bin/python",
+        "python.terminal.activateEnvironment": true
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-azuretools.vscode-docker",
+        "ms-vscode-remote.remote-containers",
+        "VisualStudioExptTeam.vscodeintellicode",
+        "redhat.vscode-yaml",
+        "editorconfig.editorconfig",
+        "tamasfe.even-better-toml"
+      ]
+    }
+  },
+  "postCreateCommand": "pip install -e .",
+  "remoteEnv": {
+    "PYTHONPATH": "/workspace/src",
+    "JAVA_HOME": "/usr/lib/jvm/default-java",
+    "PATH": "/usr/lib/jvm/default-java/bin:${env:PATH}"
+  },
+  "runArgs": [
+    "--network=flight-statistic_my_network"
   ],
-  "settings": {
-    "python.pythonPath": "/opt/conda/bin/python"
-  }
+  "forwardPorts": [
+    5433, 9042, 7001, 9002, 15433, 9000, 9001, 7077, 8080, 8081
+  ]
 }

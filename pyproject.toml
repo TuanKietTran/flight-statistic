@@ -6,7 +6,7 @@
 name = "engine"
 version = "0.1.0"
 description = "Flight data processing and warehouse management"
-authors = [{name = "Your Name", email = "you@example.com"}]
+authors = [{name = "TuanKietTran", email = "kyletran101.work@gmail.com"}]
 license = {text = "MIT"}
 dependencies = [
     "boto3",

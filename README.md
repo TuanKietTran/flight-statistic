@@ -22,11 +22,6 @@ The Flight Statistic project is designed to gather, analyze, and visualize fligh
 
 2. **Setup Docker Container**
    - Make sure Docker is installed and running.
-   - Install plugins using those commands:
-    ```bash
-    sudo chmod +x ./bin/install_plugins.sh
-    ./bin/install_plugins.sh
-    ```
    - Use the provided `docker-compose.yaml` to build and start the services:
      ```bash
      docker-compose up --d
@@ -46,7 +41,7 @@ The Flight Statistic project is designed to gather, analyze, and visualize fligh
 4. **Run the Application**
    - Once dependencies are installed, you can run the main application script:
      ```bash
-     python src/main.py
+     python test/minio.py
      ```
 
 ## Project Structure

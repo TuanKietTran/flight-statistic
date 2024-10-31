@@ -58,6 +58,19 @@ services:
       - SPARK_MASTER=spark://spark-master:7077
     networks:
       - my_network
+      
+  devcontainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: devcontainer
+    volumes:
+      - .:/workspace:cached
+    environment:
+      PYTHONPATH: "/workspace/src"
+      JAVA_HOME: "/usr/lib/jvm/default-java"
+    networks:
+      - my_network
 
 volumes:
   minio_data:
