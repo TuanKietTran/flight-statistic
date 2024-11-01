@@ -17,7 +17,7 @@ def create_bucket(bucket_name):
     try:
         s3_client.head_bucket(Bucket=bucket_name)
         print(f"Bucket '{bucket_name}' already exists.")
-    except s3_client.exceptions.NoSuchBucket:
+    except s3_client.exceptions.ClientError:
         s3_client.create_bucket(Bucket=bucket_name)
         print(f"Bucket '{bucket_name}' created successfully.")
 
