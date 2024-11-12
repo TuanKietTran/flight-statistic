@@ -1,38 +1,59 @@
-import pandas as pd
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType
 import flightradar24
-import os
+import logging
+from engine.spark import create_spark_session, save_processed_data
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 # Initialize the Flightradar24 API
 fr_api = flightradar24.Api()
 
-# Define the output directory
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "../data/flightradar24")
+# Initialize Spark session
+spark = create_spark_session()
 
-def save_to_csv(data, base_file_name):
-    # Ensure the output directory exists
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+def fetch_and_upload_data(bucket_name: str):
+    # Function to fetch data and directly upload it
+    def process_and_upload(api_func, file_prefix, format="parquet"):
+        logger.info(f"Fetching data for {file_prefix}...")
+        data = api_func()
 
-    # Convert data to DataFrame
-    df = pd.DataFrame(data)
+        if data:
+            logger.info(f"Data for {file_prefix} fetched successfully. Processing data...")
+            rows_data = data.get('rows', [])
 
-    # Split data into chunks of 1000
-    for i in range(0, len(df), 1000):
-        chunk = df.iloc[i:i + 1000]  # Get a chunk of 1000 records
-        file_path = os.path.join(OUTPUT_DIR, f"{base_file_name}_{i // 1000 + 1}.csv")  # Create a unique file name
-        chunk.to_csv(file_path, index=False)
-        print(f"Saved {len(chunk)} records to {file_path}")
+            if rows_data:
+                # Normalize column types
+                for row in rows_data:
+                    for key, value in row.items():
+                        row[key] = str(value)
 
-def fetch_data():
-    # Fetch and save airports data
-    airports = fr_api.get_airports()
-    save_to_csv(airports, 'airports')
+                # Create Spark DataFrame from normalized rows
+                schema = StructType([
+                    StructField(key, DoubleType() if isinstance(row[key], (int, float)) else StringType(), True)
+                    for key in rows_data[0].keys()
+                ])
+                
+                logger.info("Creating Spark DataFrame...")
+                df = spark.createDataFrame(rows_data, schema)
 
-    # Fetch and save airlines data
-    airlines = fr_api.get_airlines()
-    save_to_csv(airlines, 'airlines')
+                # Upload to S3
+                file_name = f"{file_prefix}.{format}"
+                logger.info(f"Uploading {file_name} to bucket '{bucket_name}' in {format} format...")
+                save_processed_data(df, bucket_name, file_name)
+                logger.info(f"{file_name} uploaded to bucket '{bucket_name}' successfully.")
+        else:
+            logger.warning(f"No data returned for {file_prefix}. Skipping upload.")
 
-def main():
-    fetch_data()
+    # Fetch and upload airports and airlines data
+    logger.info("Starting data fetch and upload process.")
+    process_and_upload(fr_api.get_airports, "flightrada24_airports",)
+    process_and_upload(fr_api.get_airlines, "flightrada24_airlines")
+    logger.info("Data fetch and upload process completed.")
 
 if __name__ == "__main__":
-    main()
+    bucket_name = "flight-data-lake"
+    logger.info("Script started.")
+    fetch_and_upload_data(bucket_name)
+    logger.info("Script completed.")
