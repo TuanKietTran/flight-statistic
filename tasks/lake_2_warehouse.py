@@ -2,7 +2,7 @@
 from pandas import DataFrame
 from engine.s3 import create_bucket, upload_file
 from engine.spark import create_spark_session
-from engine.yugabyte import create_table, insert_data
+from engine.yugabyte import create_table, insert_batch_data, df2filestream
 
 with create_spark_session() as spark:
     # MinIO - Create bucket and upload data
@@ -19,8 +19,8 @@ with create_spark_session() as spark:
 
     def save_data(transformed_df: DataFrame):
         # Save transformed data to YugabyteDB
-        for row in transformed_df.collect():
-            insert_data(row['flight'], row['year'], row['month'], row['day'], row['dep_time'], row['arr_time'], row['origin'], row['dest'], row['air_time'], row['distance'], row['name'])
+        file = df2filestream(transformed_df)
+        insert_batch_data(file)
 
     bucket_name = "flight-data-lake"
     create_bucket_and_upload_data(bucket_name)
