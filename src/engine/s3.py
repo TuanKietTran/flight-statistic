@@ -3,6 +3,7 @@
 # s3.py
 import boto3
 from .config import get_config
+from io import BytesIO
 
 config = get_config()
 
@@ -28,3 +29,22 @@ def upload_file(bucket_name, file_name, file_path):
     except s3_client.exceptions.ClientError:
         s3_client.upload_file(file_path, bucket_name, file_name)
         print(f"File '{file_name}' uploaded to bucket '{bucket_name}' successfully.")
+
+def upload_data_frame(bucket_name, file_name, data_frame, format="csv"):
+    # Create the bucket if it does not exist
+    create_bucket(bucket_name)
+
+    # Convert DataFrame to bytes in the desired format
+    buffer = BytesIO()
+    if format == "csv":
+        data_frame.to_csv(buffer, index=False)
+    elif format == "parquet":
+        data_frame.to_parquet(buffer, index=False)
+    else:
+        raise ValueError("Unsupported format: Choose 'csv' or 'parquet'")
+
+    buffer.seek(0)  # Move to the start of the BytesIO buffer
+
+    # Upload the file to MinIO
+    s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=buffer.getvalue())
+    print(f"DataFrame uploaded as '{file_name}' to bucket '{bucket_name}' successfully.")
