@@ -34,7 +34,9 @@ services:
       - my_network
 
   spark-master:
-    build: ./spark-master
+    build:
+      context: ./spark-master
+      dockerfile: Dockerfile
     container_name: spark-master
     ports:
       - "7077:7077"
