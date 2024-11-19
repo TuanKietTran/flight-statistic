@@ -126,7 +126,11 @@ def create_star_schema():
         weather_delay REAL,
         nas_delay REAL,
         security_delay REAL,
-        late_aircraft_delay REAL
+        late_aircraft_delay REAL,
+        
+        CONSTRAINT fk_time_id FOREIGN KEY (time_id) REFERENCES time_dim (id),
+        CONSTRAINT fk_carrier_code FOREIGN KEY (carrier_code) REFERENCES carrier_dim (carrier_code),
+        CONSTRAINT fk_airport_code FOREIGN KEY (airport_code) REFERENCES airport_dim (airport_code)
     );
     ''')
     conn.commit()
