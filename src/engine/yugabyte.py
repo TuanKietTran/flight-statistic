@@ -1,10 +1,13 @@
 # yugabyte.py - Define functions to interact with YugabyteDB
+
 import psycopg2
 from io import StringIO
 from .config import get_config
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import col
+import logging
 
+logger = logging.getLogger(__name__)
 config = get_config()
 
 # Establish a connection to YugabyteDB
@@ -14,9 +17,28 @@ def get_warehouse_connection():
         port=config['YUGABYTE_PORT'],
         user=config['YUGABYTE_USER'],
         password=config['YUGABYTE_PASSWORD'],
-        database="yugabyte"
+        database=config.get('YUGABYTE_DATABASE', 'yugabyte')
     )
     return conn
+
+
+def get_jdbc_url():
+    config = get_config()
+    host = config['YUGABYTE_HOST']
+    port = config['YUGABYTE_PORT']
+    database = config.get('YUGABYTE_DATABASE', 'yugabyte')
+    url = f"jdbc:postgresql://{host}:{port}/{database}"
+    return url
+
+def get_jdbc_properties():
+    config = get_config()
+    properties = {
+        "user": config['YUGABYTE_USER'],
+        "password": config['YUGABYTE_PASSWORD'],
+        "driver": "org.postgresql.Driver"
+    }
+    return properties
+
 
 def create_table():
     conn = get_warehouse_connection()
@@ -38,8 +60,7 @@ def create_table():
     conn.commit()
     cursor.close()
     conn.close()
-    print("Table 'flight_data' created successfully.")
-
+    logger.info("Table 'flight_data' created successfully.")
 
 def insert_data(flight_number, year, month, day, dep_time, arr_time, origin, destination, air_time, distance, airline_name):
     conn = get_warehouse_connection()
@@ -51,12 +72,13 @@ def insert_data(flight_number, year, month, day, dep_time, arr_time, origin, des
     conn.commit()
     cursor.close()
     conn.close()
-    print(f"Data for flight '{flight_number}' inserted successfully.")
-    
+    logger.info(f"Data for flight '{flight_number}' inserted successfully.")
+
 def insert_batch_data(file, tablename='flight_data'):
     conn = get_warehouse_connection()
     cursor = conn.cursor()
-    columns = file.readline()[:-1]
+    columns = file.readline().strip()
+    # Adjust columns if necessary based on the table
     if tablename == "carrier_staging":
         columns = columns.replace("carrier", "carrier_code", 1)
     elif tablename == "airport_staging":
@@ -64,19 +86,26 @@ def insert_batch_data(file, tablename='flight_data'):
     elif tablename == "ot_delay_staging":
         columns = columns.replace("carrier", "carrier_code", 1)
         columns = columns.replace("airport", "airport_code", 1)
-        
-        
-    cursor.copy_expert(f"COPY {tablename} ({columns}) FROM STDIN DELIMITER ',' CSV QUOTE '\"'", file)
-    conn.commit()
-    cursor.close()
-    conn.close()
-    print(f"Table '{tablename}' created successfully.")
-    
-def df2filestream(df):
+
+    copy_query = f"COPY {tablename} ({columns}) FROM STDIN WITH CSV QUOTE '\"' DELIMITER ','"
+
+    try:
+        cursor.copy_expert(copy_query, file)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logger.info(f"Data inserted into '{tablename}' successfully.")
+    except Exception as e:
+        logger.error(f"Error inserting data into '{tablename}': {e}")
+        conn.rollback()
+        cursor.close()
+        conn.close()
+
+def df2filestream(df: DataFrame):
     list_row = df.collect()
     # Convert Row objects to CSV format
     output = StringIO()
-    header = list_row[0].asDict().keys()  # Get the column names from the first row (if the rows are consistent)
+    header = list_row[0].asDict().keys()
     # Write header
     output.write(','.join(header) + '\n')
     # Write each row as a CSV line
@@ -97,7 +126,7 @@ def create_star_schema():
     );
 
     CREATE TABLE IF NOT EXISTS airport_dim (
-        airport_code CHAR(3) PRIMARY KEY,
+        airport_code VARCHAR PRIMARY KEY,
         airport_name VARCHAR UNIQUE
     );
 
@@ -111,7 +140,7 @@ def create_star_schema():
         id SERIAL PRIMARY KEY,
         time_id INTEGER,
         carrier_code VARCHAR,
-        airport_code CHAR(3),
+        airport_code VARCHAR,
         arr_flights REAL,
         arr_del15 REAL,
         carrier_ct REAL,
@@ -136,7 +165,7 @@ def create_star_schema():
     conn.commit()
     cursor.close()
     conn.close()
-    print("Star schema created successfully.")
+    logger.info("Star schema created successfully.")
 
 def create_staging_table():
     conn = get_warehouse_connection()
@@ -150,24 +179,24 @@ def create_staging_table():
     conn.commit()
     cursor.close()
     conn.close()
-    print("Temp staging table created successfully.")
+    logger.info("Staging tables created successfully.")
 
 def drop_staging_table():
     conn = get_warehouse_connection()
     cursor = conn.cursor()
     cursor.execute('''
-    DROP TABLE carrier_staging;
-    DROP TABLE airport_staging;
-    DROP TABLE time_staging;
-    DROP TABLE ot_delay_staging;
+    DROP TABLE IF EXISTS carrier_staging;
+    DROP TABLE IF EXISTS airport_staging;
+    DROP TABLE IF EXISTS time_staging;
+    DROP TABLE IF EXISTS ot_delay_staging;
     ''')
     conn.commit()
     cursor.close()
     conn.close()
-    print("Temp staging table created successfully.")
-    
+    logger.info("Staging tables dropped successfully.")
+
 def extract_tables(raw_data_df: DataFrame):
-    """Extract table raw_data to 3 dim tables and 1 fact table
+    """Extract table raw_data to dimension tables and fact table
 
     Args:
         raw_data_df (pyspark.sql.DataFrame): table raw_data
@@ -175,12 +204,12 @@ def extract_tables(raw_data_df: DataFrame):
     Returns:
         Tuple: Tables after extract
     """
-    # Extract data for 3 dim tables
+    # Extract data for dimension tables
     carrier_dim_df = raw_data_df.select("carrier", "carrier_name").distinct()
     airport_dim_df = raw_data_df.select("airport", "airport_name").distinct()
     time_dim_df = raw_data_df.select("year", "month").distinct()
 
-    # Prepare data for loading to yugabyte
+    # Prepare data for loading to YugabyteDB
     carrier_dim_data = carrier_dim_df
     airport_dim_data = airport_dim_df
     time_dim_data = time_dim_df.withColumn("id", col("year") * 100 + col("month")).select("id", "year", "month")
@@ -190,7 +219,6 @@ def extract_tables(raw_data_df: DataFrame):
                                     "security_ct","late_aircraft_ct","arr_cancelled",
                                     "arr_diverted","arr_delay","carrier_delay","weather_delay",
                                     "nas_delay","security_delay","late_aircraft_delay")
-    
     return carrier_dim_data, airport_dim_data, time_dim_data, ot_delay_fact_data
 
 def upsert():
@@ -202,20 +230,20 @@ def upsert():
     FROM carrier_staging
     ON CONFLICT (carrier_code) DO UPDATE 
     SET carrier_name = EXCLUDED.carrier_name;
-    
+
     INSERT INTO airport_dim (airport_code, airport_name)
     SELECT airport_code, airport_name
     FROM airport_staging
     ON CONFLICT (airport_code) DO UPDATE 
     SET airport_name = EXCLUDED.airport_name;
-    
+
     INSERT INTO time_dim (id, year, month)
     SELECT id, year, month
     FROM time_staging
     ON CONFLICT (id) DO UPDATE
     SET year = EXCLUDED.year,
         month = EXCLUDED.month;
-    
+
     INSERT INTO ot_delay_fact (
         time_id, carrier_code, airport_code, arr_flights, arr_del15, carrier_ct, 
         weather_ct, nas_ct, security_ct, late_aircraft_ct, arr_cancelled, arr_diverted, 
@@ -250,5 +278,41 @@ def upsert():
     conn.commit()
     cursor.close()
     conn.close()
-    print("Update and Insert successfully.")
+    logger.info("Upsert operation completed successfully.")
+
+# engine/yugabyte.py
+
+def create_analytics_tables():
+    conn = get_warehouse_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS airports_per_country (
+            country VARCHAR,
+            count INTEGER
+        );
+        ''')
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS airlines_per_country (
+            country VARCHAR,
+            count INTEGER
+        );
+        ''')
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS avg_airlines_per_airport (
+            country VARCHAR,
+            airlines_count INTEGER,
+            airports_count INTEGER,
+            avg_airlines_per_airport DOUBLE PRECISION
+        );
+        ''')
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logger.info("Analytics tables created successfully.")
+    except Exception as e:
+        logger.error(f"Error creating analytics tables: {e}")
+        conn.rollback()
+        cursor.close()
+        conn.close()
 

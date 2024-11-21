@@ -16,7 +16,8 @@ dependencies = [
     "matplotlib",
     "flightradar24",
     "pyarrow",
-    "fastparquet"
+    "fastparquet",
+    "aeroapi-python"
 ]
 
 # [tool.setuptools]
